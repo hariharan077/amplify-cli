@@ -1074,7 +1074,7 @@ export class AuthRenderer {
       statements.push(TS.assignProp('cfnUserPoolClient', 'allowedOAuthFlows', options.webClient.AllowedOAuthFlows));
     }
 
-    statements.push(...this.buildNativeUserPoolClientStatements(options.nativeClient));
+    statements.push(...this.buildNativeUserPoolClientStatements(options.nativeClient, options.identityPool !== undefined));
 
     statements.push(TS.retentionLoop(TS.propAccess('backend', 'auth', 'stack', 'node'), AUTH_RESOURCES_TO_RETAIN));
 
@@ -1185,7 +1185,7 @@ export class AuthRenderer {
     return statements;
   }
 
-  private buildNativeUserPoolClientStatements(userPoolClient: UserPoolClientType): ts.Statement[] {
+  private buildNativeUserPoolClientStatements(userPoolClient: UserPoolClientType, hasIdentityPool: boolean): ts.Statement[] {
     const statements: ts.Statement[] = [];
     const hasIdentityProviders = AuthRenderer.hasIdentityProviders(userPoolClient);
 
@@ -1356,18 +1356,21 @@ export class AuthRenderer {
       [factory.createStringLiteral('NativeAppClient'), factory.createObjectLiteralExpression(clientProps, true)],
     );
 
-    const clientVarName = 'nativeUserPoolClient';
-    statements.push(
-      factory.createVariableStatement(
-        undefined,
-        factory.createVariableDeclarationList(
-          [factory.createVariableDeclaration(factory.createIdentifier(clientVarName), undefined, undefined, addClientCall)],
-          ts.NodeFlags.Const,
+    if (hasIdentityPool) {
+      const clientVarName = 'nativeUserPoolClient';
+      statements.push(
+        factory.createVariableStatement(
+          undefined,
+          factory.createVariableDeclarationList(
+            [factory.createVariableDeclaration(factory.createIdentifier(clientVarName), undefined, undefined, addClientCall)],
+            ts.NodeFlags.Const,
+          ),
         ),
-      ),
-    );
-
-    statements.push(...this.buildCognitoProvidersPushStatements(clientVarName));
+      );
+      statements.push(...this.buildCognitoProvidersPushStatements(clientVarName));
+    } else {
+      statements.push(factory.createExpressionStatement(addClientCall));
+    }
 
     if (hasIdentityProviders) {
       statements.push(...this.buildProviderSetupStatements());
